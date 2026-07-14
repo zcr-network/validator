@@ -1,0 +1,17 @@
+services:
+  zcore-validator:
+    image: zcorenetwork/validator:latest   # official image on Docker Hub
+    # build: .   # uncomment to build from source (Dockerfile + entrypoint.sh)
+    container_name: zcore-validator
+    restart: unless-stopped
+    environment:
+      # The ONLY required setting: YOUR server's public IP.
+      - PUBLIC_IP=${PUBLIC_IP:?set PUBLIC_IP in .env or in the environment}
+    ports:
+      - "127.0.0.1:9650:9650"   # API/RPC — bound to localhost (safe default)
+      - "9651:9651"             # staking / P2P — MUST be open to the internet
+    volumes:
+      - zcore-data:/root/.avalanchego   # persists identity (NodeID/BLS) + chain state
+
+volumes:
+  zcore-data:
