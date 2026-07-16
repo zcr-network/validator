@@ -145,18 +145,18 @@ esac
 # parse sem jq (JSON de uma linha)
 NODEID="$(printf '%s' "$RESP" | sed -n 's/.*"nodeID":"\([^"]*\)".*/\1/p')"
 BLSPUB="$(printf '%s' "$RESP" | sed -n 's/.*"publicKey":"\([^"]*\)".*/\1/p')"
-BLSPOP="$(printf '%s' "$RESP" | sed -n 's/.*"proofOfPossession":"\([^"]*\)".*/\1/p')"
 
 BAR="======================================================================================"
 printf '\n\n%s\n' "$BAR"
 printf '   ✅  YOUR VALIDATOR IDENTITY  —  copy these into the dashboard to register\n'
 printf '%s\n\n' "$BAR"
 printf '   NodeID\n   >>  %s\n\n' "$NODEID"
-printf '   BLS public key\n   >>  %s\n\n' "$BLSPUB"
-printf '   BLS proof of possession\n   >>  %s\n\n' "$BLSPOP"
+printf '   BLS public key\n   >>  %s\n' "$BLSPUB"
 printf '%s\n' "$BAR"
 printf '\n   👉  Register (locks 1 ZEUS):  https://dashboard.zcore.network/validators\n\n'
+printf '   Want to see the raw details (incl. BLS proof of possession)? Run:\n'
+printf "   curl -sX POST http://localhost:%s/ext/info -H 'content-type:application/json' -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"info.getNodeID\"}'\n\n" "$API_PORT"
 printf '   Notes:\n'
 printf '    • Keep port %s/tcp open to the internet (P2P) — cloud firewall/security group too.\n' "$STAKE_PORT"
-printf "    • Don't delete the 'zcore-data' volume — it holds your identity (NodeID/BLS).\n"
-printf '    • Re-run this command anytime to re-check status and show your NodeID/BLS again.\n\n'
+printf "    • Don't delete the 'zcore-data' volume — it holds your identity.\n"
+printf '    • Re-run this command anytime to re-check status and show your identity again.\n\n'
