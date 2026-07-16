@@ -102,35 +102,61 @@ else
   say "==> no active ufw/firewalld found. Ensure your cloud security group allows ${STAKE_PORT}/tcp inbound."
 fi
 
-# --- 4) Pull + run ---
-say "==> pulling $IMAGE ..."
-$SUDO docker pull "$IMAGE"
-say "==> starting the validator ..."
-$SUDO docker rm -f zcore-validator >/dev/null 2>&1 || true
-$SUDO docker run -d --name zcore-validator --restart unless-stopped \
-  -e PUBLIC_IP="$PUBLIC_IP" \
-  -p 127.0.0.1:${API_PORT}:${API_PORT} \
-  -p ${STAKE_PORT}:${STAKE_PORT} \
-  -v zcore-data:/root/.avalanchego \
-  "$IMAGE" >/dev/null
+# --- 4) Pull + run (idempotente: se já estiver rodando, não recria) ---
+if $SUDO docker ps --filter name=zcore-validator --filter status=running -q | grep -q .; then
+  say "==> validator already running — will just verify and show your identity."
+  $SUDO docker ps --filter name=zcore-validator --format '==> {{.Names}} {{.Status}}'
+else
+  say "==> pulling $IMAGE ..."
+  $SUDO docker pull "$IMAGE"
+  say "==> starting the validator ..."
+  $SUDO docker rm -f zcore-validator >/dev/null 2>&1 || true
+  $SUDO docker run -d --name zcore-validator --restart unless-stopped \
+    -e PUBLIC_IP="$PUBLIC_IP" \
+    -p 127.0.0.1:${API_PORT}:${API_PORT} \
+    -p ${STAKE_PORT}:${STAKE_PORT} \
+    -v zcore-data:/root/.avalanchego \
+    "$IMAGE" >/dev/null
+  sleep 2
+  $SUDO docker ps --filter name=zcore-validator --format '==> {{.Names}} {{.Status}}'
+fi
 
-sleep 2
-$SUDO docker ps --filter name=zcore-validator --format '==> {{.Names}} {{.Status}}'
+# --- 5) Aguarda a API e busca NodeID + BLS ---
+say "==> waiting for the node API (NodeID/BLS) ..."
+RESP=""; i=0
+while [ $i -lt 60 ]; do
+  RESP="$(curl -s -m 5 -X POST "http://localhost:${API_PORT}/ext/info" -H 'content-type:application/json' \
+    -d '{"jsonrpc":"2.0","id":1,"method":"info.getNodeID"}' 2>/dev/null || true)"
+  case "$RESP" in *NodeID-*) break ;; esac
+  i=$((i + 1)); sleep 2
+done
 
-cat <<EOF
+case "$RESP" in
+  *NodeID-*) : ;;
+  *)
+    say ""
+    say "⚠️  Node still starting — NodeID not ready yet. Run this same command again in ~1 min,"
+    say "    or fetch it manually:"
+    say "    curl -sX POST http://localhost:${API_PORT}/ext/info -H 'content-type:application/json' -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"info.getNodeID\"}'"
+    exit 0
+    ;;
+esac
 
-✅ Validator is up.
-   Logs:     docker logs -f zcore-validator
-   Health:   curl -s http://localhost:${API_PORT}/ext/health
+# parse sem jq (JSON de uma linha)
+NODEID="$(printf '%s' "$RESP" | sed -n 's/.*"nodeID":"\([^"]*\)".*/\1/p')"
+BLSPUB="$(printf '%s' "$RESP" | sed -n 's/.*"publicKey":"\([^"]*\)".*/\1/p')"
+BLSPOP="$(printf '%s' "$RESP" | sed -n 's/.*"proofOfPossession":"\([^"]*\)".*/\1/p')"
 
-Get your NodeID + BLS (needed to register):
-   curl -sX POST http://localhost:${API_PORT}/ext/info -H 'content-type:application/json' \\
-     -d '{"jsonrpc":"2.0","id":1,"method":"info.getNodeID"}'
-
-Then register (locks 1 ZEUS) at https://dashboard.zcore.network/validators
-
-Notes:
- • The API (${API_PORT}) is bound to localhost only — safe by default.
- • Keep ${STAKE_PORT}/tcp open to the internet (P2P). Cloud firewalls/security groups too.
- • The 'zcore-data' volume is your identity (NodeID/BLS) — don't delete it.
-EOF
+BAR="======================================================================================"
+printf '\n\n%s\n' "$BAR"
+printf '   ✅  YOUR VALIDATOR IDENTITY  —  copy these into the dashboard to register\n'
+printf '%s\n\n' "$BAR"
+printf '   NodeID\n   >>  %s\n\n' "$NODEID"
+printf '   BLS public key\n   >>  %s\n\n' "$BLSPUB"
+printf '   BLS proof of possession\n   >>  %s\n\n' "$BLSPOP"
+printf '%s\n' "$BAR"
+printf '\n   👉  Register (locks 1 ZEUS):  https://dashboard.zcore.network/validators\n\n'
+printf '   Notes:\n'
+printf '    • Keep port %s/tcp open to the internet (P2P) — cloud firewall/security group too.\n' "$STAKE_PORT"
+printf "    • Don't delete the 'zcore-data' volume — it holds your identity (NodeID/BLS).\n"
+printf '    • Re-run this command anytime to re-check status and show your NodeID/BLS again.\n\n'
