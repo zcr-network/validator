@@ -100,6 +100,29 @@ Payouts are triggered by the permissionless `distribute()` / `settle()` — do i
 from the dashboard or let the network keeper automate it. Nothing is lost if no one triggers;
 it just stays pending on-chain.
 
+## 5) Uninstall (remove the node from this server)
+
+Use `uninstall.sh` when you want to **completely remove** the validator from a server — you're
+decommissioning the box, moving to another host, or you simply no longer want to validate. It
+**permanently deletes** from this server:
+
+- the container (`zcore-validator`),
+- the data volume (`zcore-data`) — this holds your node **identity** (NodeID + BLS key), so it
+  **cannot be recovered** afterwards,
+- the image.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/zcr-network/validator/main/uninstall.sh | sh
+```
+
+It asks you to type the exact phrase `DELETE VALIDATOR` to confirm — nothing is removed otherwise.
+
+> 🔴 **If your validator is still registered (1 ZEUS staked), run "Desfazer / Undo" on the
+> [dashboard](https://dashboard.zcore.network/validators) FIRST.** That unlocks your **1 ZEUS** and
+> refunds your **AVAX**. If you delete the node without undoing first, the ZEUS/AVAX stay locked
+> until the validation drains/expires on the P-Chain. The firewall port `9651/tcp` is left as-is —
+> close it manually if you like.
+
 ## Notes
 
 - **Versions are pinned** (avalanchego v1.14.0 + subnet-evm v0.8.0) and must match — don't bump them.
