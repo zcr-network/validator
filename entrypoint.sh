@@ -13,7 +13,7 @@ DATA=/root/.avalanchego
 mkdir -p "$DATA/configs" "$DATA/logs"
 
 # ZCore L1 subnet on Fuji — overridable via env, defaults to the official one.
-SUBNET="${SUBNET_ID:-2ckqTxJZtvaiAFkJWZRvrXcosfnwb9rV5EokAabJFDzh2YcMRv}"
+SUBNET="${SUBNET_ID:-7yH7uXrzy1XXNfJPxTEJXT82q9sopDeejEp881U671P9fk7wj}"
 
 cat > "$DATA/configs/node.json" <<JSON
 {
