@@ -1,0 +1,4 @@
+node_modules/
+.env
+validator-state.json
+package-lock.json

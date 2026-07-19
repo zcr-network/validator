@@ -1,0 +1,15 @@
+{
+  "name": "zcore-validator-register",
+  "private": true,
+  "type": "module",
+  "description": "Manual ZCore validator register/unstake scripts (no dashboard).",
+  "scripts": {
+    "whoami": "node whoami.mjs",
+    "register": "node register.mjs",
+    "unstake": "node unstake.mjs"
+  },
+  "dependencies": {
+    "@avalabs/avalanchejs": "^4.0.5",
+    "ethers": "^6.13.0"
+  }
+}

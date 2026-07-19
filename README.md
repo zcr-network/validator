@@ -1,7 +1,8 @@
 # Run a ZCore validator
 
-Spin up a **ZCore Network** validator node with Docker — you only configure your **public IP**.
-The node builds its own identity (NodeID + BLS key) locally; no keys ship in the image.
+Spin up a **ZCore Network** validator node with Docker and register it entirely from the
+**command line** — no dashboard, no web UI. The node builds its own identity (NodeID + BLS key)
+locally; the register/unstake scripts read it straight from the node.
 
 ## Network
 
@@ -13,27 +14,25 @@ The node builds its own identity (NodeID + BLS key) locally; no keys ship in the
 | Validator token (gate) | **ZEUS** — 1 ZEUS = 1 validator slot |
 | RPC | https://testnet.zcore.network/rpc |
 | Explorer | https://testnet.zcore.network |
-| Dashboard | https://dashboard.zcore.network |
 | Stack | avalanchego **v1.14.0** + subnet-evm **v0.8.0** |
 
 ## What you need
 
-1. **1 ZEUS** — the validation gate (1 ZEUS = 1 slot). Without it you can't register.
-2. **A server** with a **public IP** and **port 9651/tcp open to the internet** (P2P/staking). Port 9650 is the API (keep it local if you prefer).
-3. Docker + Docker Compose.
+1. **1 ZEUS** in an EVM wallet — the validation gate (1 ZEUS = 1 slot). Without it you can't register.
+2. **Test AVAX** on the Fuji **P-Chain** — funds the validator balance + the small continuous
+   P-Chain fee. (Free from the Fuji faucet.)
+3. A little **ZCR** for L1 gas (the approve/register txs). Free from the ZCore faucet.
+4. **A server** with a **public IP** and **port 9651/tcp open to the internet** (P2P/staking).
+   Port 9650 is the API (keep it local).
+5. **Docker** (to run the node) and **Node.js 18+** (to run the register/unstake scripts).
+6. Your **operator private key** (a secp256k1 hex key). The same key holds the ZEUS on the EVM
+   side and the AVAX on the P-Chain side.
 
-## Configuration (env vars)
+Everything below is done from a terminal on your VPS.
 
-The node is configured entirely by environment variables — normally you set only `PUBLIC_IP`.
+---
 
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `PUBLIC_IP` | **yes** | — | Your server's public IP (advertised to peers). |
-| `SUBNET_ID` | no | ZCore L1 | The subnet the node tracks. |
-
-Everything else (Fuji network config, the subnet-evm plugin, partial sync) is baked into the image.
-The node bootstraps from Avalanche Fuji's official network — no custom genesis or seed list needed —
-and runs with **partial sync** (P-Chain + the ZCore L1 only), keeping disk usage low.
+# Part 1 — Turn the validator ON (register)
 
 ## 1) Run the node
 
@@ -56,79 +55,114 @@ docker run -d --name zcore-validator --restart unless-stopped \
 docker logs -f zcore-validator   # watch it bootstrap
 ```
 
-**Or with Compose:**
-
-```bash
-cp .env.example .env        # set PUBLIC_IP=<your server public IP>
-docker compose up -d
-```
-
 > **Persist the volume** (`zcore-data`) — it holds your identity (NodeID/BLS). Lose it and your NodeID changes.
 
 ## 2) Wait for it to sync
 
-The node bootstraps from the Avalanche Fuji network and tracks the ZCore L1. Check health:
+The node bootstraps from Avalanche Fuji and tracks the ZCore L1. Check health:
 
 ```bash
 curl -s http://localhost:9650/ext/health | grep -o '"healthy":[a-z]*'
 ```
 
-## 3) Get your NodeID + BLS (proof of possession)
+Wait until it reports `"healthy":true` before registering.
 
-You'll need these to register. Ask the node:
+## 3) Get the register scripts
+
+Clone this repo and install the scripts' dependencies:
 
 ```bash
-curl -sX POST http://localhost:9650/ext/info \
-  -H 'content-type:application/json' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"info.getNodeID"}'
+git clone https://github.com/zcr-network/validator
+cd validator/register
+npm install
+cp .env.example .env
 ```
 
-It returns your `nodeID` and a `nodePOP` with `publicKey` + `proofOfPossession` (the BLS bits).
+Open `.env` and set your operator key:
 
-## 4) Register as a validator (lock 1 ZEUS)
+```
+PRIVATE_KEY=<your secp256k1 private key, hex>
+```
 
-Registration adds your node to the L1 validator set through the **ValidatorManager**
-(an ERC20-staking manager gated by ZEUS), which locks **1 ZEUS** and sends a Warp message
-to the P-Chain. Submit your `nodeID` + BLS proof-of-possession from step 3.
+That single key is used for both sides (EVM wallet that holds ZEUS + P-Chain address that holds
+AVAX). The scripts talk only to the public RPC and the P-Chain — never to a dashboard.
 
-Open **Become a Validator** on the [dashboard](https://dashboard.zcore.network/validators)
-for the current registration flow. Once registered, your node earns ZCR:
-- **Rotation reward** — the treasury pays validators in round-robin.
+## 4) Fund your two addresses
+
+Print the addresses derived from your key (and your node's identity):
+
+```bash
+node whoami.mjs
+```
+
+You'll see an **EVM address** and a **P-Chain address**. Fund them:
+
+- **EVM address** → send **1 ZEUS** + a little **ZCR** for gas (ZCR from the faucet).
+- **P-Chain address** → send **test AVAX**. Get it from the Fuji faucet
+  (faucet.avax.network / core.app/tools/testnet-faucet); if the faucet only pays the C-Chain,
+  move it **C→P** with the Core wallet's Cross-Chain transfer.
+
+Re-run `node whoami.mjs` until it shows `ZEUS: 1`+ and some `AVAX (P-Chain)`.
+
+## 5) Register (lock 1 ZEUS)
+
+```bash
+node register.mjs
+```
+
+This runs the full flow by itself:
+
+1. reads your node's **NodeID + BLS** from the running node,
+2. approves and **locks 1 ZEUS** in the StakingManager,
+3. registers your node on the **P-Chain** (`RegisterL1ValidatorTx`),
+4. **activates** it on the L1 (`completeValidatorRegistration`),
+5. joins the reward rotation.
+
+> ⏳ Steps 3–4 wait on the P-Chain to settle and can take a few minutes — the script **retries
+> automatically**, so just let it run. It's **resumable**: if it's interrupted, run `node
+> register.mjs` again and it picks up where it left off (it won't lock a second ZEUS).
+
+When it prints **"your validator is registered and active"**, you're validating and earning ZCR:
+- **Rotation reward** — the treasury pays validators round-robin.
 - **Fee tips** — a share of gas fees (the rest is burned).
 
-Payouts are triggered by the permissionless `distribute()` / `settle()` — do it yourself
-from the dashboard or let the network keeper automate it. Nothing is lost if no one triggers;
-it just stays pending on-chain.
+Keep an eye on the P-Chain balance over time (the validation charges a small continuous fee); top
+it up by sending more AVAX to your P-Chain address if it runs low.
 
-## 5) Leave the validator set (unstake — get your 1 ZEUS + AVAX back)
+---
 
-Validating on ZCore is **fully reversible**: you can leave whenever you want and get everything
-back. Leaving (a.k.a. *unstake* / **"Desfazer / Undo"**) does three things:
+# Part 2 — Turn the validator OFF (unstake — get your 1 ZEUS + AVAX back)
 
-- returns your **1 ZEUS** to the wallet that staked it,
-- refunds your validator's **AVAX balance** to your **P-Chain** owner address (the
-  `remainingBalanceOwner` you set when registering),
-- removes your node from the L1 validator set.
+Validating is **fully reversible**, and you do it from the same scripts — **no dashboard**. From
+`validator/register`:
 
-Do it from **"Desfazer / Undo"** on the [dashboard](https://dashboard.zcore.network/validators)
-(the same page you registered on). It walks the removal through the P-Chain and unlocks your ZEUS
-in one flow — no funds are lost.
+```bash
+node unstake.mjs
+```
 
-> **You can re-join anytime.** ZCore does **not** gate re-entry on churn or weight — the only limit
-> is the ZEUS gate (1 ZEUS = 1 slot). Leave today, come back tomorrow with the same node: just run
-> **Become a Validator** again. (Right after leaving, the P-Chain validator set takes a few minutes
-> to settle before a fresh registration confirms — if it doesn't go through on the first try, wait
-> a couple of minutes and retry.)
+This does the reverse of registration:
 
-Leaving is independent of the box: your node keeps running (and can re-register). If you also want
-to **decommission the server**, do the uninstall in step 6 — but **unstake here first** so your
-ZEUS/AVAX come back.
+1. removes your node from the L1 validator set (P-Chain `SetL1ValidatorWeight` to 0),
+2. **refunds the validator's AVAX** to your **P-Chain** address,
+3. **unlocks your 1 ZEUS** back to your EVM wallet.
 
-## 6) Uninstall (remove the node from this server)
+It prints your ZEUS/AVAX **before and after** so you can see the funds come back.
+
+> ⏳ Like registration, the final step waits on the P-Chain to settle and **retries
+> automatically**. Let it run.
+
+**Re-join anytime.** ZCore does **not** gate re-entry on churn or weight — the only limit is the
+ZEUS gate. Leave today, come back tomorrow with the same node: just run `node register.mjs` again.
+
+Leaving is independent of the box — your node keeps running and can re-register. If you also want to
+**decommission the server**, do the uninstall below (but **unstake first**, or your funds stay locked).
+
+---
+
+# Part 3 — Uninstall (remove the node from this server)
 
 Use `uninstall.sh` when you want to **completely remove** the validator from a server — you're
-decommissioning the box, moving to another host, or you simply no longer want to validate. It
-**permanently deletes** from this server:
+decommissioning the box or moving to another host. It **permanently deletes** from this server:
 
 - the container (`zcore-validator`),
 - the data volume (`zcore-data`) — this holds your node **identity** (NodeID + BLS key), so it
@@ -141,15 +175,17 @@ curl -fsSL https://raw.githubusercontent.com/zcr-network/validator/main/uninstal
 
 It asks you to type the exact phrase `DELETE VALIDATOR` to confirm — nothing is removed otherwise.
 
-> 🔴 **Unstake first (step 5) if you're still registered.** Deleting the node does **not** return
+> 🔴 **Unstake first (Part 2) if you're still registered.** Deleting the node does **not** return
 > your funds — the **1 ZEUS** stays locked and the **AVAX** stays on the P-Chain validation until it
-> drains/expires. Always run **"Desfazer / Undo"** on the
-> [dashboard](https://dashboard.zcore.network/validators) **before** you uninstall. The firewall
-> port `9651/tcp` is left as-is — close it manually if you like.
+> drains/expires. Run `node unstake.mjs` **before** you uninstall. The firewall port `9651/tcp` is
+> left as-is — close it manually if you like.
 
 ## Notes
 
 - **Versions are pinned** (avalanchego v1.14.0 + subnet-evm v0.8.0) and must match — don't bump them.
 - Firewall: `9651/tcp` must be reachable from the internet; `9650/tcp` only if you expose the API.
-- Registering a validator on Fuji's P-Chain carries a small **continuous fee in Fuji AVAX** (testnet
-  AVAX, free from the faucet) — the registration flow handles it.
+- The register/unstake scripts keep their state in `register/validator-state.json` (git-ignored).
+  You can also recover it from the chain — `unstake.mjs` looks your validator up by NodeID if the
+  file is missing.
+- Registering on Fuji's P-Chain carries a small **continuous fee in Fuji AVAX** (testnet AVAX, free
+  from the faucet) — keep a little AVAX on your P-Chain address.

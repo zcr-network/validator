@@ -1,0 +1,16 @@
+{
+  "note": "ZCore L1 (Avalanche Fuji) — public config for the manual validator scripts. No dashboard needed.",
+  "chainId": 92673,
+  "rpc": "https://testnet.zcore.network/rpc",
+  "explorer": "https://testnet.zcore.network",
+  "pchainApi": "https://api.avax-test.network",
+  "networkId": 5,
+  "subnetId": "hMVobe3qXN9fDaiBiB19pCXu4EXXzmP4qF8pfmaLuTEVX4vTj",
+  "sigAgg": "https://dashboard.zcore.network/api/aggregate-signatures",
+  "contracts": {
+    "ZEUS": "0xcd4CeDbB7D72333F0b47B7FC1AB9B42Eac945EdF",
+    "StakingManager": "0x100c0De1C0FFEe00000000000000000000000000",
+    "ValidatorManager": "0x0Feedc0de0000000000000000000000000000000",
+    "ValidatorRewards": "0x167700100Cc8E21c43a1c402cb7D2aa210dA5C32"
+  }
+}
