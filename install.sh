@@ -37,11 +37,16 @@ ask() {
   case "$ans" in [yY]*) return 0 ;; *) return 1 ;; esac
 }
 
-# free-text prompt with a default
+# free-text prompt with a default. If a default is given, Enter accepts it.
 prompt() {
   a=""
   if [ -e /dev/tty ]; then
-    printf '%s [%s]: ' "$1" "$2" > /dev/tty; read a < /dev/tty || a=""
+    if [ -n "$2" ]; then
+      printf '%s [%s]  (press Enter to accept, or type another): ' "$1" "$2" > /dev/tty
+    else
+      printf '%s: ' "$1" > /dev/tty
+    fi
+    read a < /dev/tty || a=""
   fi
   [ -n "$a" ] && printf '%s' "$a" || printf '%s' "$2"
 }
@@ -67,13 +72,14 @@ else
 fi
 have docker || { say "Docker still not available. Aborting."; exit 1; }
 
-# --- 2) Public IP ---
+# --- 2) Public IP (auto-detected; just press Enter to accept) ---
 if [ -z "${PUBLIC_IP:-}" ]; then
   DET="$(curl -s https://api.ipify.org 2>/dev/null || true)"
+  [ -n "$DET" ] && say "==> detected this server's public IP: $DET"
   PUBLIC_IP="$(prompt 'Your server public IP' "$DET")"
 fi
 [ -n "$PUBLIC_IP" ] || { say "PUBLIC_IP is required. Aborting."; exit 1; }
-say "==> public IP: $PUBLIC_IP"
+say "==> using public IP: $PUBLIC_IP"
 
 # --- 3) Firewall: staking port 9651 open? ---
 FW=""; NEEDS_OPEN=0
