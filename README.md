@@ -23,7 +23,7 @@ locally; the register/unstake scripts read it straight from the node.
    P-Chain fee. (Free from the Fuji faucet.)
 3. A little **ZCR** for L1 gas (the approve/register txs). Free from the ZCore faucet.
 4. **A server** with a **public IP** and **port 9651/tcp open to the internet** (P2P/staking).
-   Port 9650 is the API (keep it local).
+   Port 9650 is the API (kept local). Port **9055/tcp** serves the read-only status page (safe to expose).
 5. **Docker** (to run the node) and **Node.js 18+** (to run the register/unstake scripts).
 6. Your **operator private key** (a secp256k1 hex key). The same key holds the ZEUS on the EVM
    side and the AVAX on the P-Chain side.
@@ -61,13 +61,22 @@ docker logs -f zcore-validator   # watch it bootstrap
 
 ## 2) Wait for it to sync
 
-The node bootstraps from Avalanche Fuji and tracks the ZCore L1. Check health:
+The node bootstraps from Avalanche Fuji and tracks the ZCore L1. The installer also starts a
+small **status page** — open it from anywhere in your browser:
 
-```bash
-curl -s http://localhost:9650/ext/health | grep -o '"healthy":[a-z]*'
+```
+http://<your-server-ip>:9055
 ```
 
-Wait until it reports `"healthy":true` before registering.
+It shows **Syncing… / ✅ Synced** and your NodeID, auto-refreshing. (It's a separate read-only
+container that reads the node over an internal Docker network — your API port 9650 stays private
+on localhost.) Wait until it says **Synced** before registering.
+
+Prefer the terminal? On the server:
+
+```bash
+curl -s http://localhost:9650/ext/health | grep -o '"healthy":[a-z]*'   # "healthy":true when synced
+```
 
 ## 3) Get the register scripts
 
@@ -166,10 +175,10 @@ Leaving is independent of the box — your node keeps running and can re-registe
 Use `uninstall.sh` when you want to **completely remove** the validator from a server — you're
 decommissioning the box or moving to another host. It **permanently deletes** from this server:
 
-- the container (`zcore-validator`),
+- the containers (`zcore-validator` + `zcore-status`),
 - the data volume (`zcore-data`) — this holds your node **identity** (NodeID + BLS key), so it
   **cannot be recovered** afterwards,
-- the image.
+- the internal network (`zcore-net`) and the images.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/zcr-network/validator/main/uninstall.sh | sh

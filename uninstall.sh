@@ -39,14 +39,16 @@ if [ "$ans" != "$CONFIRM" ]; then
   exit 0
 fi
 
-printf '\n==> stopping + removing the container ...\n'
-$SUDO docker rm -f zcore-validator >/dev/null 2>&1 || true
+printf '\n==> stopping + removing the containers ...\n'
+$SUDO docker rm -f zcore-validator zcore-status >/dev/null 2>&1 || true
 printf '==> removing the data volume (identity) ...\n'
 $SUDO docker volume rm zcore-data >/dev/null 2>&1 || true
-printf '==> removing the image ...\n'
-$SUDO docker rmi zcorenetwork/validator:latest >/dev/null 2>&1 || true
+printf '==> removing the internal network ...\n'
+$SUDO docker network rm zcore-net >/dev/null 2>&1 || true
+printf '==> removing the images ...\n'
+$SUDO docker rmi zcorenetwork/validator:latest zcorenetwork/validator-status:latest >/dev/null 2>&1 || true
 
 printf '\n%s\n' "$BAR"
 printf '   ✅  Validator uninstalled — container, data and image removed from this server.\n'
 printf '%s\n' "$BAR"
-printf '      (The firewall port 9651/tcp was left as-is — close it manually if you like.)\n\n'
+printf '      (Firewall ports 9651/tcp and 9055/tcp were left as-is — close them manually if you like.)\n\n'

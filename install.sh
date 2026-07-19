@@ -12,8 +12,11 @@
 set -e
 
 IMAGE="zcorenetwork/validator:latest"
+STATUS_IMAGE="zcorenetwork/validator-status:latest"
+NET="zcore-net"   # user-defined docker network so the status container can reach the node by name
 STAKE_PORT=9651   # P2P/staking — MUST be reachable from the internet
 API_PORT=9650     # JSON-RPC/API — kept local by default (bound to 127.0.0.1)
+STATUS_PORT=9055  # read-only node-status web page — public & safe (never proxies the raw API)
 
 say()  { printf '%s\n' "$*"; }
 have() { command -v "$1" >/dev/null 2>&1; }
@@ -108,6 +111,17 @@ else
   say "==> no active ufw/firewalld found. Ensure your cloud security group allows ${STAKE_PORT}/tcp inbound."
 fi
 
+# status page port 9055 (read-only) — open it too so you can check sync from anywhere
+if [ -n "$FW" ]; then
+  case "$FW" in
+    ufw)       $SUDO ufw allow ${STATUS_PORT}/tcp >/dev/null 2>&1 ;;
+    firewalld) $SUDO firewall-cmd --permanent --add-port=${STATUS_PORT}/tcp >/dev/null 2>&1 && $SUDO firewall-cmd --reload >/dev/null 2>&1 ;;
+  esac
+  say "==> status port ${STATUS_PORT}/tcp opened in ${FW}."
+else
+  say "==> also allow ${STATUS_PORT}/tcp inbound in your cloud security group (node status page)."
+fi
+
 # --- 4) Pull + run (idempotente: se já estiver rodando, não recria) ---
 if $SUDO docker ps --filter name=zcore-validator --filter status=running -q | grep -q .; then
   say "==> validator already running — will just verify and show your identity."
@@ -127,6 +141,19 @@ else
   $SUDO docker ps --filter name=zcore-validator --format '==> {{.Names}} {{.Status}}'
 fi
 
+# --- 4b) Status page container (:9055) — reads the node over an internal docker network ---
+# The node's API (9650) stays private on localhost; this only exposes a curated read-only page.
+say "==> setting up the status page (:${STATUS_PORT}) ..."
+$SUDO docker network create "$NET" >/dev/null 2>&1 || true
+$SUDO docker network connect "$NET" zcore-validator >/dev/null 2>&1 || true   # attach node (idempotent)
+$SUDO docker pull "$STATUS_IMAGE" >/dev/null 2>&1 || true
+$SUDO docker rm -f zcore-status >/dev/null 2>&1 || true
+$SUDO docker run -d --name zcore-status --restart unless-stopped \
+  --network "$NET" \
+  -e NODE_URL="http://zcore-validator:${API_PORT}" \
+  -p ${STATUS_PORT}:${STATUS_PORT} \
+  "$STATUS_IMAGE" >/dev/null 2>&1 || say "⚠️  status container failed to start (non-fatal)."
+
 # --- 5) Aguarda a API e busca NodeID + BLS ---
 say "==> waiting for the node API (NodeID/BLS) ..."
 RESP=""; i=0
@@ -144,6 +171,8 @@ case "$RESP" in
     say "⚠️  Node still starting — NodeID not ready yet. Run this same command again in ~1 min,"
     say "    or fetch it manually:"
     say "    curl -sX POST http://localhost:${API_PORT}/ext/info -H 'content-type:application/json' -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"info.getNodeID\"}'"
+    say ""
+    say "    📊  Watch it sync from anywhere:  http://${PUBLIC_IP}:${STATUS_PORT}"
     exit 0
     ;;
 esac
@@ -161,8 +190,9 @@ printf '   1) NodeID\n   >>  %s\n\n' "$NODEID"
 printf '   2) BLS public key\n   >>  %s\n\n' "$BLSPUB"
 printf '   3) BLS proof of possession\n   >>  %s\n' "$BLSPOP"
 printf '%s\n' "$BAR"
-printf '\n   👉  Register (locks 1 ZEUS):  https://dashboard.zcore.network/validators\n\n'
+printf '\n   📊  Node status (check sync from anywhere):  http://%s:%s\n' "$PUBLIC_IP" "$STATUS_PORT"
+printf '   👉  Register (locks 1 ZEUS):  https://dashboard.zcore.network/validators\n\n'
 printf '   Notes:\n'
-printf '    • Keep port %s/tcp open to the internet (P2P) — cloud firewall/security group too.\n' "$STAKE_PORT"
+printf '    • Keep ports %s/tcp (P2P) and %s/tcp (status page) open — cloud firewall/security group too.\n' "$STAKE_PORT" "$STATUS_PORT"
 printf "    • Don't delete the 'zcore-data' volume — it holds your identity.\n"
 printf '    • Re-run this command anytime to re-check status and show your identity again.\n\n'
