@@ -38,7 +38,7 @@ Everything below is done from a terminal on your VPS.
 
 The official image is on Docker Hub — **no build needed**, just pull and run.
 
-**Fastest — one command** (asks for your public IP, pulls the image, starts the node):
+**Fastest — one command** (auto-detects your public IP, pulls the image, starts the node):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/zcr-network/validator/main/install.sh | sh
@@ -48,12 +48,14 @@ curl -fsSL https://raw.githubusercontent.com/zcr-network/validator/main/install.
 
 ```bash
 docker run -d --name zcore-validator --restart unless-stopped \
-  -e PUBLIC_IP=<your-server-ip> \
   -p 9650:9650 -p 9651:9651 \
   -v zcore-data:/root/.avalanchego \
   zcorenetwork/validator:latest
 docker logs -f zcore-validator   # watch it bootstrap
 ```
+
+> The node **auto-detects its public IP** (via `https://api.ipify.org`). To set it explicitly (e.g.
+> behind NAT), add `-e PUBLIC_IP=<your-server-ip>` to the `docker run`.
 
 > **Persist the volume** (`zcore-data`) — it holds your identity (NodeID/BLS). Lose it and your NodeID changes.
 
