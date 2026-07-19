@@ -100,7 +100,31 @@ Payouts are triggered by the permissionless `distribute()` / `settle()` — do i
 from the dashboard or let the network keeper automate it. Nothing is lost if no one triggers;
 it just stays pending on-chain.
 
-## 5) Uninstall (remove the node from this server)
+## 5) Leave the validator set (unstake — get your 1 ZEUS + AVAX back)
+
+Validating on ZCore is **fully reversible**: you can leave whenever you want and get everything
+back. Leaving (a.k.a. *unstake* / **"Desfazer / Undo"**) does three things:
+
+- returns your **1 ZEUS** to the wallet that staked it,
+- refunds your validator's **AVAX balance** to your **P-Chain** owner address (the
+  `remainingBalanceOwner` you set when registering),
+- removes your node from the L1 validator set.
+
+Do it from **"Desfazer / Undo"** on the [dashboard](https://dashboard.zcore.network/validators)
+(the same page you registered on). It walks the removal through the P-Chain and unlocks your ZEUS
+in one flow — no funds are lost.
+
+> **You can re-join anytime.** ZCore does **not** gate re-entry on churn or weight — the only limit
+> is the ZEUS gate (1 ZEUS = 1 slot). Leave today, come back tomorrow with the same node: just run
+> **Become a Validator** again. (Right after leaving, the P-Chain validator set takes a few minutes
+> to settle before a fresh registration confirms — if it doesn't go through on the first try, wait
+> a couple of minutes and retry.)
+
+Leaving is independent of the box: your node keeps running (and can re-register). If you also want
+to **decommission the server**, do the uninstall in step 6 — but **unstake here first** so your
+ZEUS/AVAX come back.
+
+## 6) Uninstall (remove the node from this server)
 
 Use `uninstall.sh` when you want to **completely remove** the validator from a server — you're
 decommissioning the box, moving to another host, or you simply no longer want to validate. It
@@ -117,11 +141,11 @@ curl -fsSL https://raw.githubusercontent.com/zcr-network/validator/main/uninstal
 
 It asks you to type the exact phrase `DELETE VALIDATOR` to confirm — nothing is removed otherwise.
 
-> 🔴 **If your validator is still registered (1 ZEUS staked), run "Desfazer / Undo" on the
-> [dashboard](https://dashboard.zcore.network/validators) FIRST.** That unlocks your **1 ZEUS** and
-> refunds your **AVAX**. If you delete the node without undoing first, the ZEUS/AVAX stay locked
-> until the validation drains/expires on the P-Chain. The firewall port `9651/tcp` is left as-is —
-> close it manually if you like.
+> 🔴 **Unstake first (step 5) if you're still registered.** Deleting the node does **not** return
+> your funds — the **1 ZEUS** stays locked and the **AVAX** stays on the P-Chain validation until it
+> drains/expires. Always run **"Desfazer / Undo"** on the
+> [dashboard](https://dashboard.zcore.network/validators) **before** you uninstall. The firewall
+> port `9651/tcp` is left as-is — close it manually if you like.
 
 ## Notes
 
