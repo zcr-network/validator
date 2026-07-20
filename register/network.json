@@ -5,7 +5,7 @@
   "explorer": "https://testnet.zcore.network",
   "pchainApi": "https://api.avax-test.network",
   "networkId": 5,
-  "subnetId": "hMVobe3qXN9fDaiBiB19pCXu4EXXzmP4qF8pfmaLuTEVX4vTj",
+  "subnetId": "2pTqqpENtHTi118Dh4PSbLkjA6ySpBBeRTK9emcrfksDFytAdg",
   "sigAgg": "https://dashboard.zcore.network/api/aggregate-signatures",
   "contracts": {
     "ZEUS": "0xcd4CeDbB7D72333F0b47B7FC1AB9B42Eac945EdF",

@@ -14,7 +14,7 @@ locally; the register/unstake scripts read it straight from the node.
 | Validator token (gate) | **ZEUS**, 1 ZEUS = 1 validator slot |
 | RPC | https://testnet.zcore.network/rpc |
 | Explorer | https://testnet.zcore.network |
-| Stack | avalanchego **v1.14.0** + subnet-evm **v0.8.0** |
+| Stack | avalanchego **v1.14.2** + subnet-evm **v1.14.2** (plugin do release do avalanchego) |
 
 ## What you need
 
@@ -193,7 +193,7 @@ It asks you to type the exact phrase `DELETE VALIDATOR` to confirm, nothing is r
 
 ## Notes
 
-- **Versions are pinned** (avalanchego v1.14.0 + subnet-evm v0.8.0) and must match, don't bump them.
+- **Versions are pinned** (avalanchego v1.14.2 + subnet-evm v1.14.2, both from the avalanchego release) and must match, don't bump them.
 - Firewall: `9651/tcp` must be reachable from the internet; `9650/tcp` only if you expose the API.
 - The register/unstake scripts keep their state in `register/validator-state.json` (git-ignored).
   You can also recover it from the chain, `unstake.mjs` looks your validator up by NodeID if the
