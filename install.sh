@@ -75,6 +75,21 @@ else
 fi
 have docker || { say "Docker still not available. Aborting."; exit 1; }
 
+# Ensure the Docker DAEMON is actually running. "installed" != "running": on many fresh
+# VPS images Docker is present but the service is stopped, so `docker pull` fails with
+# "Cannot connect to the Docker daemon". Start + enable it (systemd or sysvinit) and wait.
+if ! $SUDO docker info >/dev/null 2>&1; then
+  say "==> Docker is installed but the daemon isn't running, starting it ..."
+  $SUDO systemctl enable --now docker >/dev/null 2>&1 || $SUDO service docker start >/dev/null 2>&1 || true
+  d=0; while [ $d -lt 15 ] && ! $SUDO docker info >/dev/null 2>&1; do sleep 2; d=$((d + 1)); done
+fi
+$SUDO docker info >/dev/null 2>&1 || {
+  say "❌ Can't reach the Docker daemon. Start it and re-run this command:"
+  say "     sudo systemctl start docker      # or:  sudo service docker start"
+  exit 1
+}
+say "==> Docker daemon is running."
+
 # --- 2) Public IP (auto-detected; just press Enter to accept) ---
 if [ -z "${PUBLIC_IP:-}" ]; then
   DET="$(curl -s https://api.ipify.org 2>/dev/null || true)"
