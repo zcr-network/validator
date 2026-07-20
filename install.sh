@@ -1,6 +1,6 @@
 #!/bin/sh
 # ============================================================================
-# ZCore Network — validator installer.
+# ZCore Network - validator installer.
 # Detects your OS, installs Docker (asks first), opens the staking port
 # (asks first), then pulls the image and starts your node. You only give
 # your public IP.
@@ -14,9 +14,9 @@ set -e
 IMAGE="zcorenetwork/validator:latest"
 STATUS_IMAGE="zcorenetwork/validator-status:latest"
 NET="zcore-net"   # user-defined docker network so the status container can reach the node by name
-STAKE_PORT=9651   # P2P/staking — MUST be reachable from the internet
-API_PORT=9650     # JSON-RPC/API — kept local by default (bound to 127.0.0.1)
-STATUS_PORT=9055  # read-only node-status web page — public & safe (never proxies the raw API)
+STAKE_PORT=9651   # P2P/staking - MUST be reachable from the internet
+API_PORT=9650     # JSON-RPC/API - kept local by default (bound to 127.0.0.1)
+STATUS_PORT=9055  # read-only node-status web page - public & safe (never proxies the raw API)
 
 say()  { printf '%s\n' "$*"; }
 have() { command -v "$1" >/dev/null 2>&1; }
@@ -25,11 +25,11 @@ have() { command -v "$1" >/dev/null 2>&1; }
 SUDO=""
 if [ "$(id -u)" -ne 0 ]; then
   if have sudo; then SUDO="sudo"; else
-    say "⚠️  Not root and 'sudo' not found — Docker install / firewall steps may fail."
+    say "⚠️  Not root and 'sudo' not found - Docker install / firewall steps may fail."
   fi
 fi
 
-# y/n prompt — reads from /dev/tty so it also works under 'curl | sh'
+# y/n prompt - reads from /dev/tty so it also works under 'curl | sh'
 ask() {
   [ "${ASSUME_YES:-}" = "1" ] && return 0
   if [ -e /dev/tty ]; then
@@ -118,7 +118,7 @@ if [ -n "$FW" ] && [ "$NEEDS_OPEN" = "1" ]; then
     esac
     say "==> opened ${STAKE_PORT}/tcp in ${FW}."
   else
-    say "⚠️  Left closed — peers can't reach your node until ${STAKE_PORT}/tcp is open."
+    say "⚠️  Left closed - peers can't reach your node until ${STAKE_PORT}/tcp is open."
   fi
 elif [ -n "$FW" ]; then
   say "==> firewall (${FW}): ${STAKE_PORT}/tcp already open."
@@ -126,7 +126,7 @@ else
   say "==> no active ufw/firewalld found. Ensure your cloud security group allows ${STAKE_PORT}/tcp inbound."
 fi
 
-# status page port 9055 (read-only) — open it too so you can check sync from anywhere
+# status page port 9055 (read-only) - open it too so you can check sync from anywhere
 if [ -n "$FW" ]; then
   case "$FW" in
     ufw)       $SUDO ufw allow ${STATUS_PORT}/tcp >/dev/null 2>&1 ;;
@@ -139,7 +139,7 @@ fi
 
 # --- 4) Pull + run (idempotente: se já estiver rodando, não recria) ---
 if $SUDO docker ps --filter name=zcore-validator --filter status=running -q | grep -q .; then
-  say "==> validator already running — will just verify and show your identity."
+  say "==> validator already running - will just verify and show your identity."
   $SUDO docker ps --filter name=zcore-validator --format '==> {{.Names}} {{.Status}}'
 else
   say "==> pulling $IMAGE ..."
@@ -156,7 +156,7 @@ else
   $SUDO docker ps --filter name=zcore-validator --format '==> {{.Names}} {{.Status}}'
 fi
 
-# --- 4b) Status page container (:9055) — reads the node over an internal docker network ---
+# --- 4b) Status page container (:9055) - reads the node over an internal docker network ---
 # The node's API (9650) stays private on localhost; this only exposes a curated read-only page.
 say "==> setting up the status page (:${STATUS_PORT}) ..."
 $SUDO docker network create "$NET" >/dev/null 2>&1 || true
@@ -183,7 +183,7 @@ case "$RESP" in
   *NodeID-*) : ;;
   *)
     say ""
-    say "⚠️  Node still starting — NodeID not ready yet. Run this same command again in ~1 min,"
+    say "⚠️  Node still starting - NodeID not ready yet. Run this same command again in ~1 min,"
     say "    or fetch it manually:"
     say "    curl -sX POST http://localhost:${API_PORT}/ext/info -H 'content-type:application/json' -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"info.getNodeID\"}'"
     say ""
@@ -199,7 +199,7 @@ BLSPOP="$(printf '%s' "$RESP" | sed -n 's/.*"proofOfPossession":"\([^"]*\)".*/\1
 
 BAR="======================================================================================"
 printf '\n\n%s\n' "$BAR"
-printf '   ✅  YOUR VALIDATOR IDENTITY  —  copy these 3 into the dashboard to register\n'
+printf '   ✅  YOUR VALIDATOR IDENTITY  -  copy these 3 into the dashboard to register\n'
 printf '%s\n\n' "$BAR"
 printf '   1) NodeID\n   >>  %s\n\n' "$NODEID"
 printf '   2) BLS public key\n   >>  %s\n\n' "$BLSPUB"
@@ -208,6 +208,6 @@ printf '%s\n' "$BAR"
 printf '\n   📊  Node status (check sync from anywhere):  http://%s:%s\n' "$PUBLIC_IP" "$STATUS_PORT"
 printf '   👉  Register (locks 1 ZEUS):  https://dashboard.zcore.network/validators\n\n'
 printf '   Notes:\n'
-printf '    • Keep ports %s/tcp (P2P) and %s/tcp (status page) open — cloud firewall/security group too.\n' "$STAKE_PORT" "$STATUS_PORT"
-printf "    • Don't delete the 'zcore-data' volume — it holds your identity.\n"
+printf '    • Keep ports %s/tcp (P2P) and %s/tcp (status page) open - cloud firewall/security group too.\n' "$STAKE_PORT" "$STATUS_PORT"
+printf "    • Don't delete the 'zcore-data' volume - it holds your identity.\n"
 printf '    • Re-run this command anytime to re-check status and show your identity again.\n\n'

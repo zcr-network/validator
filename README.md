@@ -129,7 +129,7 @@ This runs the full flow by itself:
 4. **activates** it on the L1 (`completeValidatorRegistration`),
 5. joins the reward rotation.
 
-> ⏳ Steps 3–4 wait on the P-Chain to settle and can take a few minutes, the script **retries
+> ⏳ Steps 3-4 wait on the P-Chain to settle and can take a few minutes, the script **retries
 > automatically**, so just let it run. It's **resumable**: if it's interrupted, run `node
 > register.mjs` again and it picks up where it left off (it won't lock a second ZEUS).
 

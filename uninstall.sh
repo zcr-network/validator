@@ -1,6 +1,6 @@
 #!/bin/sh
 # ============================================================================
-# ZCore Network — validator UNINSTALLER.
+# ZCore Network - validator UNINSTALLER.
 # Removes the node container + data volume (identity) + image from this server.
 #
 #   curl -fsSL https://raw.githubusercontent.com/zcr-network/validator/main/uninstall.sh | sh
@@ -19,7 +19,7 @@ printf '   ⚠️   ⚠️   ⚠️     UNINSTALL THE ZCORE VALIDATOR     ⚠️
 printf '%s\n\n' "$BAR"
 printf '   This will PERMANENTLY DELETE from THIS server:\n'
 printf '     • the validator container  (zcore-validator)\n'
-printf '     • the data volume          (zcore-data)  — holds your node IDENTITY\n'
+printf '     • the data volume          (zcore-data)  - holds your node IDENTITY\n'
 printf '       (NodeID + BLS key). This CANNOT be recovered afterwards.\n\n'
 printf '   🔴  If your validator is STILL REGISTERED (1 ZEUS staked), run\n'
 printf '       "Desfazer / Undo" in the dashboard FIRST:\n'
@@ -35,7 +35,7 @@ printf '\n   To confirm, type EXACTLY this phrase and press Enter:\n\n       %s\
 ans=""
 if [ -e /dev/tty ]; then read ans < /dev/tty || ans=""; fi
 if [ "$ans" != "$CONFIRM" ]; then
-  printf '\n   ❌ Cancelled — the phrase did not match. NOTHING was deleted.\n\n'
+  printf '\n   ❌ Cancelled - the phrase did not match. NOTHING was deleted.\n\n'
   exit 0
 fi
 
@@ -49,6 +49,6 @@ printf '==> removing the images ...\n'
 $SUDO docker rmi zcorenetwork/validator:latest zcorenetwork/validator-status:latest >/dev/null 2>&1 || true
 
 printf '\n%s\n' "$BAR"
-printf '   ✅  Validator uninstalled — container, data and image removed from this server.\n'
+printf '   ✅  Validator uninstalled - container, data and image removed from this server.\n'
 printf '%s\n' "$BAR"
-printf '      (Firewall ports 9651/tcp and 9055/tcp were left as-is — close them manually if you like.)\n\n'
+printf '      (Firewall ports 9651/tcp and 9055/tcp were left as-is - close them manually if you like.)\n\n'
