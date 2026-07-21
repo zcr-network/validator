@@ -69,20 +69,25 @@ if (!(await isOnPChain(pvmapi, st.validationID))) {
   console.log('→ STEP B: registering on the P-Chain…');
   let done = false;
   for (let attempt = 1; attempt <= 25 && !done; attempt++) {
-    const signed = await aggregateViaNode(st.warpMsg);
-    const feeState = await pvmapi.getFeeState();
-    const { utxos } = await pvmapi.getUTXOs({ addresses: [pAddr] });
-    const tx = ax.pvm.newRegisterL1ValidatorTx({ balance, blsSignature: ax.utils.hexToBuffer(id.blsPop.replace(/^0x/, '')), message: ax.utils.hexToBuffer(signed.replace(/^0x/, '')), feeState, fromAddressesBytes: [pBytes], utxos }, ctx);
-    await ax.addTxSignatures({ unsignedTx: tx, privateKeys: [pk] });
+    // NOTE: the warp aggregation MUST stay inside this try/catch. The self-hosted
+    // node runs a partial-sync P-Chain, so warp_getMessageAggregateSignature can
+    // briefly fail with "canonical validators … current P-chain height < requested"
+    // when the local P-Chain is 1 block behind the tip. That is transient — retry,
+    // don't crash. (If it were outside the try, one blip would abort the whole run.)
     try {
+      const signed = await aggregateViaNode(st.warpMsg);
+      const feeState = await pvmapi.getFeeState();
+      const { utxos } = await pvmapi.getUTXOs({ addresses: [pAddr] });
+      const tx = ax.pvm.newRegisterL1ValidatorTx({ balance, blsSignature: ax.utils.hexToBuffer(id.blsPop.replace(/^0x/, '')), message: ax.utils.hexToBuffer(signed.replace(/^0x/, '')), feeState, fromAddressesBytes: [pBytes], utxos }, ctx);
+      await ax.addTxSignatures({ unsignedTx: tx, privateKeys: [pk] });
       const resp = await pvmapi.issueSignedTx(tx.getSignedTx());
       console.log('  RegisterL1ValidatorTx:', resp.txID || JSON.stringify(resp));
       for (let i = 0; i < 40 && !done; i++) { await sleep(3000); if (await isOnPChain(pvmapi, st.validationID)) done = true; else process.stdout.write('.'); }
       console.log(done ? '\n✅ STEP B done — validator on the P-Chain' : '\n  not visible yet, retrying…');
     } catch (e) {
       const msg = e?.message || String(e);
-      if (/insufficient/i.test(msg)) {
-        console.log(`  (attempt ${attempt}) P-Chain validator-set still settling — waiting 45s and retrying…`);
+      if (/insufficient|warp agg|canonical|p-?chain height|validator set|aggregat|empty result/i.test(msg)) {
+        console.log(`  (attempt ${attempt}) P-Chain/warp still settling — waiting 45s and retrying… (${msg.slice(0, 140)})`);
         await sleep(45000);
       } else throw e;
     }

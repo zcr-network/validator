@@ -49,19 +49,33 @@ if (await isOnPChain(pvmapi, st.validationID)) {
   for (const lg of rc.logs) { try { const p = sm.interface.parseLog({ topics: lg.topics, data: lg.data }); if (p?.name === 'SendWarpMessage' && lg.address.toLowerCase() === WARP_PRECOMPILE) wmsg = p.args.message; } catch { /* */ } }
   if (!wmsg) throw new Error('no SendWarpMessage in the removal receipt');
 
-  console.log('→ 2) aggregating (node warp API)…');
-  const signed = await aggregateViaNode(wmsg);
-
-  console.log('→ 3) SetL1ValidatorWeightTx (weight 0) on the P-Chain — removes the validator + refunds AVAX…');
-  const feeState = await pvmapi.getFeeState();
-  const { utxos } = await pvmapi.getUTXOs({ addresses: [pAddr] });
-  const setTx = ax.pvm.newSetL1ValidatorWeightTx({ message: ax.utils.hexToBuffer(signed.replace(/^0x/, '')), feeState, fromAddressesBytes: [pBytes], utxos }, ctx);
-  await ax.addTxSignatures({ unsignedTx: setTx, privateKeys: [pk] });
-  const resp = await pvmapi.issueSignedTx(setTx.getSignedTx());
-  console.log('  tx:', resp.txID || JSON.stringify(resp));
+  // 2) aggregate + 3) SetL1ValidatorWeightTx — retry through the partial-sync warp lag.
+  // Same reason as register.mjs STEP B: the self-hosted node's partial-sync P-Chain can
+  // briefly lag the tip, making warp_getMessageAggregateSignature throw. That is transient.
   let gone = false;
-  for (let i = 0; i < 40 && !gone; i++) { await sleep(3000); if (!(await isOnPChain(pvmapi, st.validationID))) gone = true; else process.stdout.write('.'); }
-  console.log(gone ? '\n  ✅ removed from the P-Chain (AVAX refunded to your P-Chain address)' : '\n  still on the P-Chain, continuing…');
+  for (let attempt = 1; attempt <= 25 && !gone; attempt++) {
+    if (!(await isOnPChain(pvmapi, st.validationID))) { gone = true; break; } // a prior attempt may have settled late
+    try {
+      console.log('→ 2) aggregating (node warp API)…');
+      const signed = await aggregateViaNode(wmsg);
+      console.log('→ 3) SetL1ValidatorWeightTx (weight 0) on the P-Chain — removes the validator + refunds AVAX…');
+      const feeState = await pvmapi.getFeeState();
+      const { utxos } = await pvmapi.getUTXOs({ addresses: [pAddr] });
+      const setTx = ax.pvm.newSetL1ValidatorWeightTx({ message: ax.utils.hexToBuffer(signed.replace(/^0x/, '')), feeState, fromAddressesBytes: [pBytes], utxos }, ctx);
+      await ax.addTxSignatures({ unsignedTx: setTx, privateKeys: [pk] });
+      const resp = await pvmapi.issueSignedTx(setTx.getSignedTx());
+      console.log('  tx:', resp.txID || JSON.stringify(resp));
+      for (let i = 0; i < 40 && !gone; i++) { await sleep(3000); if (!(await isOnPChain(pvmapi, st.validationID))) gone = true; else process.stdout.write('.'); }
+      console.log(gone ? '\n  ✅ removed from the P-Chain (AVAX refunded to your P-Chain address)' : '\n  still on the P-Chain, retrying…');
+    } catch (e) {
+      const msg = e?.message || String(e);
+      if (/insufficient|warp agg|canonical|p-?chain height|validator set|aggregat|empty result/i.test(msg)) {
+        console.log(`  (attempt ${attempt}) P-Chain/warp still settling — waiting 45s and retrying… (${msg.slice(0, 140)})`);
+        await sleep(45000);
+      } else throw e;
+    }
+  }
+  if (!gone) console.log('  still on the P-Chain after retries — re-run unstake.mjs in a few minutes to finish.');
 } else console.log('↺ already off the P-Chain — skipping steps 1-3');
 console.log('');
 
