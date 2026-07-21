@@ -42,8 +42,15 @@ console.log('');
 
 // ===== 1) forceInitiateValidatorRemoval → 2) aggregate → 3) SetL1ValidatorWeightTx(0) on the P-Chain =====
 if (await isOnPChain(pvmapi, st.validationID)) {
-  console.log('→ 1) forceInitiateValidatorRemoval…');
-  const rc = await (await sm.forceInitiateValidatorRemoval(st.validationID, false, 0)).wait();
+  // Active (2) -> forceInitiateValidatorRemoval. PendingRemoved (3, unstake que travou no passo 2) -> resend:
+  // o forceInitiate REVERTE num validador ja PendingRemoved; resendValidatorRemovalMessage (publico) re-emite
+  // a MESMA msg de peso 0 pra retomar (o AVAX segue preso no validador ate o SetL1ValidatorWeightTx completar).
+  const vm = new Contract(VALIDATOR_MANAGER, ['function getValidator(bytes32) view returns (tuple(uint8 status, bytes nodeID, uint64 sw, uint64 sn, uint64 rn, uint64 weight))', 'function resendValidatorRemovalMessage(bytes32)'], owner);
+  let vstatus = 2; try { vstatus = Number((await vm.getValidator(st.validationID)).status); } catch { /* rede fora: segue normal */ }
+  console.log(vstatus === 3 ? '→ 1) resendValidatorRemovalMessage (retomando unstake travado)…' : '→ 1) forceInitiateValidatorRemoval…');
+  const rc = vstatus === 3
+    ? await (await vm.resendValidatorRemovalMessage(st.validationID)).wait()
+    : await (await sm.forceInitiateValidatorRemoval(st.validationID, false, 0)).wait();
   console.log('  tx:', rc.hash);
   let wmsg = '';
   for (const lg of rc.logs) { try { const p = sm.interface.parseLog({ topics: lg.topics, data: lg.data }); if (p?.name === 'SendWarpMessage' && lg.address.toLowerCase() === WARP_PRECOMPILE) wmsg = p.args.message; } catch { /* */ } }
