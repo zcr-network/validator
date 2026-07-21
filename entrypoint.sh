@@ -19,7 +19,15 @@ fi
 [ -n "${PUBLIC_IP:-}" ] || { echo "ERROR: could not auto-detect the public IP. Set it explicitly, e.g. -e PUBLIC_IP=<your.public.ip>"; exit 1; }
 
 DATA=/root/.avalanchego
-mkdir -p "$DATA/configs" "$DATA/logs"
+mkdir -p "$DATA/configs" "$DATA/logs" "$DATA/plugins"
+
+# Refresh do plugin subnet-evm da IMAGEM pro VOLUME a cada boot, pra ele SEMPRE casar com a versao
+# do avalanchego baked nesta imagem. Sem isso, o volume sombreia o plugins/ da imagem e o plugin fica
+# preso na versao que populou o volume na 1a vez -> "RPCChainVM protocol version mismatch" (ex.: node
+# 1.14.2 protocolo 45 com plugin antigo protocolo 44) depois de atualizar a imagem. Bug real, corrigido.
+if [ -d /opt/zcore/plugins ]; then
+  cp -f /opt/zcore/plugins/* "$DATA/plugins/" 2>/dev/null || true
+fi
 
 # ZCore L1 subnet on Fuji - overridable via env, defaults to the official one.
 SUBNET="${SUBNET_ID:-2pTqqpENtHTi118Dh4PSbLkjA6ySpBBeRTK9emcrfksDFytAdg}"

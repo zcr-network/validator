@@ -21,12 +21,15 @@ RUN curl -fsSL -o /tmp/a.tgz https://github.com/ava-labs/avalanchego/releases/do
 # da L1 ZCore (o nome do arquivo TEM que ser o VMID). Dois nomes: o VMID canonico do subnet-evm
 # (srEXiWaH..., usado pela chain atual, criada via platform-cli) e o VMID legado por nome (gkfAB6...,
 # chains antigas do avalanche-cli).
+# IMPORTANTE: baixado pra /opt/zcore/plugins (FORA de /root/.avalanchego, que e o volume). O
+# entrypoint copia pro volume a cada boot, senao o volume "sombreia" a imagem e o plugin fica preso
+# na versao que populou o volume na 1a vez -> protocol mismatch depois de um update da imagem.
 RUN curl -fsSL -o /tmp/s.tgz https://github.com/ava-labs/avalanchego/releases/download/${AVER}/subnet-evm-linux-${TARGETARCH}-${AVER}.tar.gz \
-  && mkdir -p /tmp/s /root/.avalanchego/plugins && tar -xzf /tmp/s.tgz -C /tmp/s \
+  && mkdir -p /tmp/s /opt/zcore/plugins && tar -xzf /tmp/s.tgz -C /tmp/s \
   && install -m0755 "$(find /tmp/s -type f -name subnet-evm | head -1)" \
-       /root/.avalanchego/plugins/srEXiWaHuhNyGwPUi444Tu47ZEDwxTWrbQiuD7FmgSAQ6X7Dy \
-  && cp /root/.avalanchego/plugins/srEXiWaHuhNyGwPUi444Tu47ZEDwxTWrbQiuD7FmgSAQ6X7Dy \
-       /root/.avalanchego/plugins/gkfAB6apjRonXBGLnTVzeB9LG5UPJ5J4yDNfXL87jG57fkMa5 \
+       /opt/zcore/plugins/srEXiWaHuhNyGwPUi444Tu47ZEDwxTWrbQiuD7FmgSAQ6X7Dy \
+  && cp /opt/zcore/plugins/srEXiWaHuhNyGwPUi444Tu47ZEDwxTWrbQiuD7FmgSAQ6X7Dy \
+       /opt/zcore/plugins/gkfAB6apjRonXBGLnTVzeB9LG5UPJ5J4yDNfXL87jG57fkMa5 \
   && rm -rf /tmp/s.tgz /tmp/s
 
 COPY entrypoint.sh /entrypoint.sh
