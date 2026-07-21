@@ -69,13 +69,14 @@ if (!(await isOnPChain(pvmapi, st.validationID))) {
   console.log('→ STEP B: registering on the P-Chain…');
   let done = false;
   for (let attempt = 1; attempt <= 25 && !done; attempt++) {
-    // NOTE: the warp aggregation MUST stay inside this try/catch. The self-hosted
-    // node runs a partial-sync P-Chain, so warp_getMessageAggregateSignature can
-    // briefly fail with "canonical validators … current P-chain height < requested"
-    // when the local P-Chain is 1 block behind the tip. That is transient — retry,
-    // don't crash. (If it were outside the try, one blip would abort the whole run.)
+    // Aggregate via the SIGAGG service — NOT the node's warp_getMessageAggregateSignature.
+    // The self-hosted infra node's built-in warp aggregator HANGS (never returns) when it
+    // is not part of the validator set, so it can't collect the L1 signatures. The sigagg
+    // is a dedicated aggregator that reaches the L1 validators directly (fast + reliable,
+    // same service the ack step uses). Keep it INSIDE the retry so a transient sigagg/settle
+    // error retries instead of aborting the whole run.
     try {
-      const signed = await aggregateViaNode(st.warpMsg);
+      const signed = await aggregateAck(st.warpMsg); // sigagg, sem justification (msg de registro on-chain)
       const feeState = await pvmapi.getFeeState();
       const { utxos } = await pvmapi.getUTXOs({ addresses: [pAddr] });
       const tx = ax.pvm.newRegisterL1ValidatorTx({ balance, blsSignature: ax.utils.hexToBuffer(id.blsPop.replace(/^0x/, '')), message: ax.utils.hexToBuffer(signed.replace(/^0x/, '')), feeState, fromAddressesBytes: [pBytes], utxos }, ctx);

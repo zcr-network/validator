@@ -49,15 +49,15 @@ if (await isOnPChain(pvmapi, st.validationID)) {
   for (const lg of rc.logs) { try { const p = sm.interface.parseLog({ topics: lg.topics, data: lg.data }); if (p?.name === 'SendWarpMessage' && lg.address.toLowerCase() === WARP_PRECOMPILE) wmsg = p.args.message; } catch { /* */ } }
   if (!wmsg) throw new Error('no SendWarpMessage in the removal receipt');
 
-  // 2) aggregate + 3) SetL1ValidatorWeightTx — retry through the partial-sync warp lag.
-  // Same reason as register.mjs STEP B: the self-hosted node's partial-sync P-Chain can
-  // briefly lag the tip, making warp_getMessageAggregateSignature throw. That is transient.
+  // 2) aggregate + 3) SetL1ValidatorWeightTx — retry through transient sigagg/settle errors.
+  // Aggregate via the SIGAGG service, NOT the node's warp API (which hangs on this infra
+  // node — same reason as register.mjs STEP B).
   let gone = false;
   for (let attempt = 1; attempt <= 25 && !gone; attempt++) {
     if (!(await isOnPChain(pvmapi, st.validationID))) { gone = true; break; } // a prior attempt may have settled late
     try {
-      console.log('→ 2) aggregating (node warp API)…');
-      const signed = await aggregateViaNode(wmsg);
+      console.log('→ 2) aggregating (sigagg)…');
+      const signed = await aggregateAck(wmsg); // sigagg, sem justification (msg de remoção on-chain)
       console.log('→ 3) SetL1ValidatorWeightTx (weight 0) on the P-Chain — removes the validator + refunds AVAX…');
       const feeState = await pvmapi.getFeeState();
       const { utxos } = await pvmapi.getUTXOs({ addresses: [pAddr] });
