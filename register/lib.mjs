@@ -167,3 +167,17 @@ export async function isOnPChain(pvmapi, validationIDHex) {
   const vidCb58 = ax.Id.fromHex(validationIDHex.replace(/^0x/, '')).toString();
   try { const v = await pvmapi.getL1Validator(vidCb58); return !!(v && (v.nodeID || v.weight)); } catch { return false; }
 }
+
+// ---------- ValidatorManager status (chain = source of truth) ----------
+// ACP-99 ValidatorStatus: 0 Unknown | 1 PendingAdded | 2 Active | 3 PendingRemoved | 4 Completed | 5 Invalidated.
+// Reads it fresh from the VM. NEVER trust a saved validationID without checking this: a SendWarpMessage
+// initiate log stays on-chain forever, so a REMOVED validator still "looks like" an initiate you can resume.
+const VM_GETVALIDATOR_ABI = 'function getValidator(bytes32) view returns (tuple(uint8 status, bytes nodeID, uint64 sw, uint64 sn, uint64 rn, uint64 weight))';
+export async function vmStatus(provider, validationIDHex) {
+  try { return Number((await new Contract(VALIDATOR_MANAGER, [VM_GETVALIDATOR_ABI], provider).getValidator(validationIDHex)).status); }
+  catch { return 0; }
+}
+// A registration you can RESUME (mid-flight or already active). 0/3/4/5 are dead for a fresh register.
+export const isResumableRegistration = (s) => s === 1 || s === 2;
+// Nothing left to unstake (already gone / never really there).
+export const isAlreadyRemoved = (s) => s === 0 || s === 4 || s === 5;

@@ -10,6 +10,7 @@ import {
   loadState, saveState, sleep, fetchNodeIdentity, nodeIDToBytes,
   buildAckMessage, buildJustification, extractInnerRegisterMsg, packWarpPredicate,
   aggregateViaNode, aggregateAck, findInitiateForNode, setup, pchainBalanceNano, isOnPChain,
+  vmStatus, isAlreadyRemoved,
 } from './lib.mjs';
 
 const { formatEther } = ethers;
@@ -26,6 +27,20 @@ if (!st.validationID || !st.warpMsg) {
   saveState(st);
 }
 const vidCb58 = ax.Id.fromHex(st.validationID.replace(/^0x/, '')).toString();
+
+// CHAIN = SOURCE OF TRUTH. If the ValidatorManager already reports this validationID as
+// Completed/Invalidated/Unknown, the validator is gone and the 1 ZEUS + AVAX are already back.
+// Bail out early — otherwise completeValidatorRemoval below would revert and burn ~19min of retries.
+{
+  const vs0 = await vmStatus(provider, st.validationID);
+  if (isAlreadyRemoved(vs0)) {
+    console.log(`↺ this validator is already removed on-chain (status ${vs0}) — nothing to unstake.`);
+    console.log('   Your 1 ZEUS is back in the EVM wallet and the AVAX is on your P-Chain address.');
+    console.log('   Register again anytime:  node register.mjs');
+    st.step = 'removed'; saveState(st);
+    process.exit(0);
+  }
+}
 
 const zeusRO = new Contract(ZEUS_ADDR, ['function balanceOf(address) view returns (uint256)'], provider);
 const sm = new Contract(STAKING_MANAGER, [

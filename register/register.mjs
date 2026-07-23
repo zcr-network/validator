@@ -11,6 +11,7 @@ import {
   loadState, saveState, sleep, fetchNodeIdentity, nodeIDToBytes, pAddr20FromPriv,
   buildAckMessage, buildJustification, extractInnerRegisterMsg, packWarpPredicate,
   aggregateViaNode, aggregateAck, findInitiateForNode, setup, pchainBalanceNano, isOnPChain, PCHAIN_KEY,
+  vmStatus, isResumableRegistration,
 } from './lib.mjs';
 
 const { parseEther, formatEther } = ethers;
@@ -31,12 +32,22 @@ console.log('P-Chain:   ', pAddr, '(holds AVAX + gets it back on unstake)');
 console.log('');
 
 // ===== STEP A: approve 1 ZEUS + initiateValidatorRegistration =====
+// CHAIN = SOURCE OF TRUTH. A saved validationID (or an initiate log found on-chain) is only worth
+// resuming if the ValidatorManager still reports it as PendingAdded/Active. A REMOVED validator
+// (Completed/Invalidated) leaves its initiate log behind forever — resuming it would burn ~19min of
+// futile RegisterL1ValidatorTx retries. So: verify status first, and fall through to a FRESH initiate
+// if it's dead. This is what makes "register again after removing" actually work.
+if (st.validationID && !isResumableRegistration(await vmStatus(provider, st.validationID))) {
+  console.log('↺ saved registration is finished/removed on-chain — ignoring it and registering fresh.');
+  st = {}; saveState(st);
+}
 if (!st.validationID) {
   const existing = await findInitiateForNode(nodeBytes);
-  if (existing?.validationID) {
-    console.log('↺ this node already has an initiate on-chain (1 ZEUS already locked) — resuming:', existing.validationID);
+  if (existing?.validationID && isResumableRegistration(await vmStatus(provider, existing.validationID))) {
+    console.log('↺ this node already has a LIVE initiate on-chain (1 ZEUS already locked) — resuming:', existing.validationID);
     st = { ...st, validationID: existing.validationID, warpMsg: existing.warpMsg, step: 'initiated' }; saveState(st);
   } else {
+    if (existing?.validationID) console.log('↺ found an old removed/expired initiate on-chain — ignoring it, registering fresh.');
     const zeusRO = new Contract(ZEUS_ADDR, ['function balanceOf(address) view returns (uint256)', 'function allowance(address,address) view returns (uint256)'], provider);
     const bal = await zeusRO.balanceOf(owner.address);
     console.log('ZEUS balance:', formatEther(bal));
